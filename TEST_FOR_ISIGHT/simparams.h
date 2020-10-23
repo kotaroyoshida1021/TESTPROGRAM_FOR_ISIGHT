@@ -2,8 +2,10 @@
 #include "pch.h"
 #include <Eigen/Core>
 #include <vector>
-static const int NDIV = 501;//分割数，配列計算に使用
-static const int vbase = 12;//基定関数の個数
+#define MY_DEBUG_MODE
+//static const int NDIV = 501;//分割数，配列計算に使用
+#define NDIV 251
+static const int vbase = 251;//基定関数の個数
 constexpr int dim = vbase;
 #define U_NCOORD vbase
 #define Xi_NCOORD vbase
@@ -18,9 +20,12 @@ static VectorXd AlphaParams;
 static VectorXd OmgEtaParams;
 static VectorXd DistParams;
 static VectorXd Coef;
-static VectorXd AlphaCoef, OmgEtaCoef, DistCoef;
+static VectorXd AlphaCoef, OmgEtaCoef, DistCoef;//読み込み関数用
+static VectorXd ALPHA, OMG_ETA, DIST;//ヒルベルト空間用
 static VectorXd S;
 static Vector2d Xi0Vec;
+static vector<dbl> InputCoef;
+//static vector <VectorXd, Eigen::aligned_allocator<Eigen::VectorXd>> kernel;
 
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
