@@ -95,16 +95,10 @@ static void initializing() {
 	}
 	fclose(fp);
 //Inputファイルから係数を読み出す
-//補間する対象は，出力値であるとする．
-//仮
 //初期化
 	BETA = vector<dbl>(NDIV);
 	OMG_ETA = vector<dbl>(NDIV);
 	//coef->initializing
-	S = VectorXd::Zero(dim);
-	for (int i = 0; i < dim; i++) {
-		S(i) = i * length_LL / (dim - 1);
-	}
 	cout << "all done\n";
 }
 
@@ -134,13 +128,15 @@ static void initializeForCalcObj(VectorXd a) {
 }
 //目的関数の被積分関数
 static dbl objective_integrand(dbl s) {
+	cout << "Now..." << __func__;
+	cout << "...s->" << s << "\n";
 	Vector3d zetaSdot = omegaEta_LL(s) * obj_LL.xi(s) - omegaXi_LL(s) * obj_LL.eta(s);
 	if (isnan(Square(obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1)) || isnan(Square(zetaSdot.dot(obj_L.xi(s)) - omgEta(s)))) {
 		cout << "isNan is found! condition>>";
 		cout << "param = " << s << ", zeta = " << obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1 << ", OmgEta = " << zetaSdot.dot(obj_L.xi(s)) - omgEta(s) << "\n";
 		exit(1);
 	}
-	return Square(obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1) + Square(zetaSdot.dot(obj_L.xi(s))-omgEta(s));
+	return Square(obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1) + Square((zetaSdot.dot(obj_L.xi(s))-omgEta(s))/kappa(s));
 }
 
 static dbl objective(int n,VectorXd &a) {
@@ -165,8 +161,8 @@ static dbl objective(int n,VectorXd &a) {
 
 
 //逆行列微分のためのサブモジュールの定義
-static void calcGramMatrix(VectorXd Params, MatrixXd& Mat) {
-	Mat = MatrixXd::Zero(Kdim, Kdim);
+static MatrixXd calcGramMatrix(VectorXd Params) {
+	MatrixXd Mat = MatrixXd::Zero(Kdim, Kdim);
 	for (int i = 1; i < NDIV-1; i++) {
 		for (int j = 1; j < NDIV-1; j++) {
 			Mat(i - 1, j - 1) = RadiusBasisFunc(i * Ds, j * Ds, Params);
@@ -174,17 +170,27 @@ static void calcGramMatrix(VectorXd Params, MatrixXd& Mat) {
 	}
 	Mat += MatrixXd::Identity(Kdim, Kdim) * Params[2];
 	//行列がフルランクになるまで，仮想的な誤差項を足し合わせる．
-	MatrixXd EPS = 1.0e-8 * (MatrixXd::Identity(Kdim, Kdim));
+	MatrixXd EPS = 1.0e-4 * (MatrixXd::Identity(Kdim, Kdim));
 	MatrixXd MAT_TMP = Mat;
-	for (int i = 0; i < 7; i++) {
+	int flag = 0;
+	for (int i = 0; i < 3; i++) {
 		FullPivLU<MatrixXd> lu_decomp(MAT_TMP);
 		int rank = lu_decomp.rank();
 		if (rank != Kdim) {
+			printf("rank is not\n");
 			MAT_TMP = Mat + EPS;
 			EPS *= 10.0;
+			flag = 1;
 		}
 	}
-	Mat += EPS;
+	if (flag == 1) {
+		Mat = MAT_TMP;
+	}
+	else {
+		Mat = Mat + EPS;
+	}
+	return Mat;
+	
 }
 
 static MatrixXd PartialKernelMatrix(int NUM,VectorXd Params) {
@@ -198,7 +204,7 @@ static MatrixXd PartialKernelMatrix(int NUM,VectorXd Params) {
 				case 0:
 					pK(i-1, j-1) = RadiusBasisFunc(i * Ds, j * Ds, Params) / Params(0);
 				case 1:
-					pK(i-1, j-1) = -(Square(i * Ds - j * Ds)) / (Square(Params(1))* Square(Params(1))) * RadiusBasisFunc(i * Ds, j * Ds, Params);
+					pK(i-1, j-1) = (Square(i * Ds - j * Ds)) / (Square(Params(1))* Square(Params(1))) * RadiusBasisFunc(i * Ds, j * Ds, Params);
 				case 2:
 					//pK[i, j] = Params(0) * exp(Square(i * Ds - j * Ds) / Params(1));
 					break;
@@ -215,7 +221,7 @@ static MatrixXd PartialKernelMatrix(int NUM,VectorXd Params) {
 
 static void PreCalcForConds() {
 	MatrixXd Kinv,K,tmp,K_i;
-	calcGramMatrix(AlphaParams, K);
+	K = calcGramMatrix(AlphaParams);
 	Kinv = K.inverse();
 	for (int i = 0; i < 3; i++) {
 		K_i = PartialKernelMatrix(i, AlphaParams);
@@ -223,7 +229,7 @@ static void PreCalcForConds() {
 		detPartDiff[i] = tmp.trace();
 		KinvPartdiff[i] = tmp * Kinv;
 	}
-	calcGramMatrix(OmgEtaParams, K);
+	K = calcGramMatrix(OmgEtaParams);
 	Kinv = K.inverse();
 	for (int i = 0; i < 3; i++) {
 		K_i = PartialKernelMatrix(i, OmgEtaParams);
@@ -231,13 +237,13 @@ static void PreCalcForConds() {
 		detPartDiff[i+3] = tmp.trace();
 		KinvPartdiff[i+3] = tmp * Kinv;
 	}
-	calcGramMatrix(DistParams, K);
+	K = calcGramMatrix(DistParams);
 	Kinv = K.inverse();
 	for (int i = 0; i < 3; i++) {
-		K_i = PartialKernelMatrix(i, OmgEtaParams);
+		K_i = PartialKernelMatrix(i, DistParams);
 		tmp = Kinv * K_i;
-		detPartDiff[i + 3*2] = tmp.trace();
-		KinvPartdiff[i + 3*2] = tmp * Kinv;
+		detPartDiff[i + 3 * 2] = tmp.trace();
+		KinvPartdiff[i + 3 * 2] = tmp * Kinv;
 	}
 	for (int i = 0; i < 9; i++) {
 		if (isnan(detPartDiff[i])) {
@@ -263,11 +269,18 @@ static void CalcConds(int n, VectorXd& a, int ncond, VectorXd& COND) {
 #ifdef MY_DEBUG_MODE
 	cout << "done\n";
 #endif
+	cout << "now...";
 	for (int i = 0; i < 3; i++) {
-		d.push_back(detPartDiff[i] - A.dot(KinvPartdiff[i] * A));
+		d.push_back(-detPartDiff[i] + A.dot(KinvPartdiff[i] * A));
 	}
+	cout << "alpha...";
 	for (int i = 0; i < 3; i++) {
-		d.push_back(detPartDiff[i + 3] - E.dot(KinvPartdiff[i + 3] * E));
+		d.push_back(-detPartDiff[i + 3] + E.dot(KinvPartdiff[i + 3] * E));
+	}
+	cout << "eta..";
+	if (d.size() != ncond) {
+		cout << "size not match\n";
+		exit(1);
 	}
 	for (int i = 0; i < d.size(); i++) {
 		if (isnan(d[i])) {
@@ -275,7 +288,11 @@ static void CalcConds(int n, VectorXd& a, int ncond, VectorXd& COND) {
 			exit(1);
 		}
 	}
-		
+
+	cout << "all done\n";
+	COND = Eigen::Map<Eigen::VectorXd>(&d[0], d.size());
+	//COND *= 5.0;
+	vector<dbl>().swap(d);		
 }
 
 static dbl DistMax(dbl s) {
@@ -302,14 +319,18 @@ int main(int argc, char** argv)
 	COND.open("conds.txt");
 	INEQ.open("ineqs.txt");
 	PreCalcForConds();
+	for (int i = 0; i < 9; i++) {
+		printf("%f\n",detPartDiff[i]);
+	}
 	vector<dbl> c, i;
 	VectorXd CONDS;
-	coef = VectorXd::Zero(NCOORD);
+	coef = VectorXd::Ones(NCOORD);
 	CalcConds(NCOORD,coef,NCOND,CONDS);
 	for (int p = 0; p < 6; p++) {
 		//COND.write("%lf", c[p]);
-		COND << CONDS[p];
+		COND << CONDS(p);
 		if (p != 6) COND << ",";
+		cout << "i = " << p << "\n";
 	}
 	COND.close();
 	i = calcIneqs();
