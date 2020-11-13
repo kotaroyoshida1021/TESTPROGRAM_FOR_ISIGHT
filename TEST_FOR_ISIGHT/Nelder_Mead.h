@@ -10,7 +10,7 @@ using namespace Eigen;
 constexpr auto SKIPTIME = 100;	/* print interval for debugging */
 constexpr auto MONITORTIME = 100;	/* for Gnuplot RealTimeDisplay */;
 constexpr auto UPPERfvalue = 1.0e15;	/* threshold value of fvalue */
-#define SetGPMonitor 0
+#define SetGPMonitor 1
 
 struct ObjectiveFunction {
 public:

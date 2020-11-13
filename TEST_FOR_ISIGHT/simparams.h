@@ -2,7 +2,7 @@
 #include "pch.h"
 #include <Eigen/Core>
 #include <vector>
-#define MY_DEBUG_MODE
+//#define MY_DEBUG_MODE
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251
 static const int vbase = 251;//基定関数の個数
@@ -23,11 +23,12 @@ static VectorXd DistParams;
 static VectorXd coef;
 static dbl OMG_ETA0, OMG_ETA_COEF;
 static vector<dbl> BETA, OMG_ETA, DIST;//ヒルベルト空間用
-static VectorXd S;
+static MatrixXd S;
 static Vector2d Xi0Vec;
 static vector<dbl> detPartDiff(9);
 static vector<MatrixXd, Eigen::aligned_allocator<MatrixXd>> KinvPartdiff(9);
 
+const string file_name = "test20201113vbase8";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
 static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数

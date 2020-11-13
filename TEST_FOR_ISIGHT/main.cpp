@@ -20,10 +20,13 @@
 #include "simparams.h"
 #include "SurfaceInfo.h"
 #include "Timer.h"
+#include <nlopt.hpp>
 
 using namespace std;
 using namespace Eigen;
 using namespace placeholders;
+using namespace nlopt;
+
 static const int Kdim = NDIV - 2;
 
 static inline dbl Square(dbl f) {
@@ -93,6 +96,7 @@ static void initializing() {
 		DistParams(i) = HyperParams(3 + i);
 		AlphaParams(i) = HyperParams(i + 3 * 2);
 	}
+
 	fclose(fp);
 //Inputファイルから係数を読み出す
 //初期化
@@ -103,7 +107,7 @@ static void initializing() {
 }
 
 static dbl RadiusBasisFunc(dbl s_i, dbl s_j, VectorXd Params) { return Params(0) * exp(-0.5 * Square(s_i - s_j) / (Params(1) * Params(1))); }
-static dbl RadiusBasisFuncSdot(dbl s, dbl s_j, VectorXd Params) { return -Params(0) * (s - s_j) * exp(-0.5 * Square(s - s_j) / Params(1) * Params(1)) / Square(Params(1)); }
+static dbl RadiusBasisFuncSdot(dbl s, dbl s_j, VectorXd Params) { return -Params(0) * (s - s_j) * exp(-0.5 * Square(s - s_j) / Params(1) * Params(1)) / Square(Params(1))* Params(1); }
 static void divideCoef(VectorXd a) {
 	int i;
 	for (i = 0; i < NDIV; i++) {
@@ -112,7 +116,7 @@ static void divideCoef(VectorXd a) {
 	Xi0Vec(0) = a[NDIV];
 	Xi0Vec(0) = a[NDIV+1];
 	OMG_ETA0 = 2 * atan(a[NDIV+2]) / M_PI;
-	OMG_ETA_COEF = (kappa(0) - OMG_ETA0) / (kappa(0) + OMG_ETA0);
+	OMG_ETA_COEF = kappa(0) * (1 - OMG_ETA0) / kappa(0)*(1 + OMG_ETA0);
 }
 
 static dbl IntegrandForOmgEta(dbl s) { return 2.0 * kappa(s) * beta(s); }
@@ -128,8 +132,10 @@ static void initializeForCalcObj(VectorXd a) {
 }
 //目的関数の被積分関数
 static dbl objective_integrand(dbl s) {
+#ifdef MY_DEBUG_MODE
 	cout << "Now..." << __func__;
 	cout << "...s->" << s << "\n";
+#endif
 	Vector3d zetaSdot = omegaEta_LL(s) * obj_LL.xi(s) - omegaXi_LL(s) * obj_LL.eta(s);
 	if (isnan(Square(obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1)) || isnan(Square(zetaSdot.dot(obj_L.xi(s)) - omgEta(s)))) {
 		cout << "isNan is found! condition>>";
@@ -139,7 +145,7 @@ static dbl objective_integrand(dbl s) {
 	return Square(obj_LL.zeta(s).dot(obj_L.zeta(s)) - 1) + Square((zetaSdot.dot(obj_L.xi(s))-omgEta(s))/kappa(s));
 }
 
-static dbl objective(int n,VectorXd &a) {
+static dbl objective(int n,VectorXd a) {
 #ifdef MY_DEBUG_MODE
 	cout << "calculate objective...";
 #endif
@@ -156,6 +162,7 @@ static dbl objective(int n,VectorXd &a) {
 #ifdef MY_DEBUG_MODE
 	cout << "done\n";
 #endif
+	obj_L.terminate();
 	return ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&objective_integrand, _1));
 }
 
@@ -170,7 +177,7 @@ static MatrixXd calcGramMatrix(VectorXd Params) {
 	}
 	Mat += MatrixXd::Identity(Kdim, Kdim) * Params[2];
 	//行列がフルランクになるまで，仮想的な誤差項を足し合わせる．
-	MatrixXd EPS = 1.0e-4 * (MatrixXd::Identity(Kdim, Kdim));
+	MatrixXd EPS = 1.0e-5 * (MatrixXd::Identity(Kdim, Kdim));
 	MatrixXd MAT_TMP = Mat;
 	int flag = 0;
 	for (int i = 0; i < 3; i++) {
@@ -214,6 +221,9 @@ static MatrixXd PartialKernelMatrix(int NUM,VectorXd Params) {
 				}
 			}
 		}
+	}
+	else {
+		pK *= sqrt(Params[2]);
 	}
 	
 	return pK;
@@ -309,19 +319,206 @@ static vector<dbl> calcIneqs() {
 	cout << "all done\n";
 #endif
 }
+//NLopt用WrapperSeries
+
+void fprint_for_gnu(string FILE_NAME) {
+	//Update_VectorData();
+	int i;
+	ofstream temp;
+	ofstream input;
+	temp.open(FILE_NAME, std::ios::out);
+	for (i = 0; i < NDIV; i++) {
+
+	}
+	for (i = 0; i < NDIV; i++) {
+		temp << obj_L.POS[i](2) << " " << obj_L.POS[i](0) << " " << obj_L.POS[i](1) << "\n";
+	}
+	temp << "\n\n";
+	//temp << "\n\n";
+	//for (i = 0; i < NDIV; i++) {
+		//temp << obj_U.POS[i](2) << " " << obj_U.POS[i](0) << " " << obj_U.POS[i](1) << "\n";
+	//}
+	temp.close();
+}
+//NLopt用WrapperSeries
+int EVAL_COUNTER = 0;
+static dbl objectiveWrapper(const vector<dbl> &x, vector<dbl> &grad, void *my_func_data) {
+	
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	dbl ret = objective(NCOORD, coef);
+	if (!grad.empty()) {
+		for (int i = 0; i < grad.size(); i++) {
+			grad[i] = 0.0;
+		}
+	}
+	
+	if (EVAL_COUNTER == 0||EVAL_COUNTER % 1000 == 0) {
+		//fprintf_s(stderr, "\r%8d | %6.3e \r", EVAL_COUNTER, ret);
+		cout << "EVAL_COUNTER = " << EVAL_COUNTER << " f = " << ret << "\n";
+		if (EVAL_COUNTER % 10000 == 0) cout << coef; cout << "\n";
+	}
+	++EVAL_COUNTER;
+	return ret;
+}
+
+static vector<dbl> MultiCondFuncWrapper(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	VectorXd Conds;
+	CalcConds(NCOORD, coef, NCOND, Conds);
+	vector<dbl> ret(&Conds[0], Conds.data() + Conds.cols() * Conds.rows());
+	return ret;
+}
+static dbl Equality1(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	A = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		A[i - 1] = atan(BETA[i]);
+
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[0] + A.dot(KinvPartdiff[0] * A);
+}
+
+static dbl Equality2(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	A = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		A[i - 1] = atan(BETA[i]);
+
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[1] + A.dot(KinvPartdiff[1] * A);
+}
+
+static dbl Equality3(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	A = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		A[i - 1] = atan(BETA[i]);
+
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[2] + A.dot(KinvPartdiff[2] * A);
+}
+
+static dbl Equality4(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	E = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		E[i - 1] = OMG_ETA[i];
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[3] + E.dot(KinvPartdiff[3] * E);
+}
+
+static dbl Equality5(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	E = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		E[i - 1] = OMG_ETA[i];
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[3+1] + E.dot(KinvPartdiff[3+1] * E);
+}
+
+static dbl Equality6(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	divideCoef(coef);
+	vector<dbl> d;
+	VectorXd A, E;
+	E = VectorXd::Zero(NDIV - 2);
+	for (int i = 1; i < NDIV - 1; i++) {
+		E[i - 1] = OMG_ETA[i];
+	}
+#ifdef MY_DEBUG_MODE
+	cout << __func__ << "->done\n";
+#endif
+	return -detPartDiff[3 + 2] + E.dot(KinvPartdiff[3 + 2] * E);
+}
+
+
+
 
 int main(int argc, char** argv)
 {
 	initializing();
+	
 
-	ofstream OBJ, COND, INEQ;
-	OBJ.open("objfunc.txt");
-	COND.open("conds.txt");
-	INEQ.open("ineqs.txt");
+	string DATA = "./data/" + file_name;
+	if (_mkdir(DATA.c_str()) == 0.0) {
+		cout << "dictionary " << DATA << " has been created\n";
+	}
+	else {
+		int c, counter = 0;
+		fprintf_s(stderr, "directory: %s already exists. \n", DATA.c_str());
+		fprintf_s(stderr, "if you override the directory, input 'y'on keybord\n");
+		fprintf_s(stderr, "if you don't, input any keys except for 'y' \n"); fflush(stderr);
+		while ((c = getchar()) != '\n') {//バッファを吐き出すまで
+			if (c == 'y' && counter == 0) {
+				fprintf_s(stderr, "directory: %s has been overide\a\n", DATA.c_str());
+				break;
+			}
+			else if (counter > 1000) {
+				fprintf_s(stderr, "error at line:%d in func.\"%s()\"\n", __LINE__, __func__);
+				exit(EXIT_FAILURE);
+			}
+			counter++;
+		}
+		if (counter != 0) {
+			fprintf_s(stderr, "forced termination \n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	
 	PreCalcForConds();
 	for (int i = 0; i < 9; i++) {
 		printf("%f\n",detPartDiff[i]);
 	}
+	ofstream OBJ, COND, INEQ;
+	OBJ.open("objfunc.txt");
+	COND.open("conds.txt");
+	INEQ.open("ineqs.txt");
 	vector<dbl> c, i;
 	VectorXd CONDS;
 	coef = VectorXd::Ones(NCOORD);
@@ -335,6 +532,27 @@ int main(int argc, char** argv)
 	COND.close();
 	i = calcIneqs();
 	OBJ << objective(NCOORD,coef);
-	
-	
+	OBJ.close();
+	opt opt(LN_AUGLAG_EQ, NCOORD);
+	opt.set_min_objective(objectiveWrapper, NULL);
+	opt.add_equality_constraint(Equality1, NULL, 0.0001);
+	opt.add_equality_constraint(Equality2, NULL, 0.0001);
+	opt.add_equality_constraint(Equality3, NULL, 0.0001);
+	opt.add_equality_constraint(Equality4, NULL, 0.0001);
+	opt.add_equality_constraint(Equality5, NULL, 0.0001);
+	opt.add_equality_constraint(Equality6, NULL, 0.0001);
+	//opt.set_xtol_rel(1.0e-2);
+	nlopt::opt local_opt(LN_NEWUOA, NCOORD);
+	opt.set_local_optimizer(local_opt);
+	//opt.set_ftol_rel(1.0e-4);
+	vector<dbl> x0(NCOORD, 0.1);
+	dbl f_opt;
+	try {
+		result ret = opt.optimize(x0, f_opt);
+		cout << ret;
+	}
+	catch (exception& e) {
+		std::cout << "nlopt failed: " << e.what() << std::endl;
+	}
+
 }
