@@ -46,6 +46,14 @@ void Coordinates::DetermineAxies(Vector3d& initXI, Vector3d& initETA, Vector3d& 
 	for (int i = 0; i < n - 1; i++) {
 		//cout << "count = " << i << "\n";
 		S = i * Ds;
+		if (i != 0) {
+			for (int J = 0; J < 3; J++) {
+				if (isnan(ETA[i](J)) || isnan(XI[i](J)) || isnan(ZETA[i](J))) {
+					cout << "NaN is detected!" << "\n";
+					cout << "omgXi = " << omegaXi(S - Ds) << ", omgEta = " << omegaEta(S - Ds) << ", omgZeta = " << omegaZeta(S - Ds) << "\n";
+				}
+			}
+		}
 		k1_xi = omegaZeta(S)*ETA[i] - omegaEta(S)*ZETA[i];
 		k1_eta = -omegaZeta(S)*XI[i] + omegaXi(S)*ZETA[i];
 		k1_zeta = omegaEta(S)*XI[i] - omegaXi(S)*ETA[i];

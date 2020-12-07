@@ -9,6 +9,33 @@
 #ifndef PCH_H
 typedef double dbl;
 typedef	enum status { success, failure, error } status;
+typedef enum Mode { Exist_KerA, Exist_KerE, Exist_Both, Exist_None }ProgramMode;
+
+class CheckMode {
+private:
+	ProgramMode Status;
+public:
+	void set_ProgramMode(int dim, int RankA,int RankE) {
+		if (RankA != dim) {
+			if (RankE != dim) {
+				Status = Exist_Both;
+
+			}
+			else {
+				Status = Exist_KerA;
+			}
+		}
+		else if (RankE != dim) {
+			Status = Exist_KerE;
+		}
+		else {
+			Status = Exist_None;
+		}
+	}
+	Mode getProgramMode() {
+		return Status;
+	}
+};
 
 
 // TODO: ここでプリコンパイルするヘッダーを追加します
