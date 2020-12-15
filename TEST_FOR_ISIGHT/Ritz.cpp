@@ -11,7 +11,7 @@ using namespace Eigen;
 
 
 RitzMethod::RitzMethod(int nvar,dbl Length) {
-	//initialize
+	cout << "RitzInitialize...";
 	a = VectorXd::Zero(nvar);
 	length = Length;
 	dbl q = M_PI / length;
@@ -22,11 +22,11 @@ RitzMethod::RitzMethod(int nvar,dbl Length) {
 	for (int i = 0; i < BMAX; i++) {
 		VectorXd Base = VectorXd::Zero(nvar);
 		for (int j = 0; j < nvar; j++) {
-			Base(j) = base[j](q, i*ds);
+			Base(j) = base[j](q, i* ds);
 		}
 		BaseFunctions[i] = Base;
 	}
-
+	cout << "done";
 }
 
 dbl RitzMethod::Function(dbl s) {

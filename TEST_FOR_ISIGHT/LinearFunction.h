@@ -9,7 +9,7 @@ using namespace Eigen;
 struct ScalarFunction {
 public:
 	vector<dbl> VEC;
-	dbl Ds;
+	dbl Ds = 0.0;
 public:
 	void set_Info(dbl delS, vector<dbl> &v) {
 		Ds = delS;
@@ -73,7 +73,7 @@ public:
 struct VectorFunction {
 public:
 	vector<Vector3d, aligned_allocator<Vector3d>> VEC;
-	dbl Ds;
+	dbl Ds = 0.0;
 public:
 	void set_Info(dbl delS, vector<Vector3d, aligned_allocator<Vector3d>> &v) {
 		Ds = delS;
@@ -110,7 +110,7 @@ public:
 template <typename T>
 struct VecFunc {
 	vector<T, aligned_allocator<T>> VEC;
-	dbl Ds;
+	dbl Ds = 0.0;
 
 	void set_Info(dbl dels, vector<T, aligned_allocator<T>> &v) {
 		Ds = dels;
