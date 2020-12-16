@@ -204,22 +204,17 @@ static dbl omgEta(dbl s) {
 	return kappa(s)*atanSigmoid(forOMGET.Function(s));
 	//return kappa(s) * sinarctanSigmoid(forOMGET.Function(s));
 }
-
+static dbl DistMax(dbl s) {
+	return sqrt(1 + beta(s) * beta(s)) / (beta.derivative(s) + (1 + beta(s) * beta(s)) * omgEta(s));
+}
+#define SIGMOID(s) (1.0/(1.0+exp(-s)))
 static dbl Dist(dbl s) {
-	//if (s == 0.0 || s == length_LL) {
-	//	return 0.0;
-	//}
-	//else {
-	//	dbl tmp = 0.0;
-	//	dbl ARC = s;
-	//	if ((ARC >= 0.0) && (ARC < Ds)) ARC = Ds;
-	//	else if ((ARC > length_LL - Ds) && (ARC <= length_LL)) ARC = length_LL - Ds;
-	//	for (int i = 0; i < Kdim; i++) {
-	//		tmp += DIST_H(i) * RadiusBasisFunc(ARC, (i + 1) * Ds, DistParams);
-	//	}
-	//	return tmp;
-	//}
-	return 0.0;
+	if (s == 0.0 || s == length_LL) {
+		return 0.0;
+	}
+	else {
+		return DistMax(s) * SIGMOID(forDIST.Function(s));
+	}
 }
 /*
 	THESE WERE FUNCTIONS FOR OBJECTIVE AND CONDITIONS
@@ -234,14 +229,18 @@ static inline void MemorizeFunctions() {
 	for (int i = 0; i < NDIV; i++) {
 		OMG_ETA[i] = omgEta(i * Ds);
 		BETA[i] = Beta(i * Ds);
-		DIST[i] = Dist(i * Ds);
+		
 	}
+	
 	//ALPHA = vector<dbl>(Kdim);
 	for (int i = 1; i < Kdim+1; i++) {
 		ALPHA[i - 1] = atan(Beta(i * Ds));
 	}
 	omegaEta.set_Info(Ds, OMG_ETA);
 	beta.set_Info(Ds, BETA);
+	for (int i = 0; i < NDIV; i++) {
+		DIST[i] = Dist(i * Ds);
+	}
 	dist.set_Info(Ds, DIST);
 }
 static Coordinates obj_L(NDIV, length_LL, omegaXi,omegaEtaWrap,omegaZeta);
@@ -258,7 +257,17 @@ static dbl IntegrandForCond_Zeta(dbl s);
 static dbl IntegrandForCond_Pos(dbl s);
 static dbl IntegrandForCond_omgEta(dbl s);
 static dbl BarrierFunc(dbl s) {
-	return 1 / Square(sin(phi(s)));
+	//return 1 / Square(sin(phi(s)));
+	//return 1 / Square(omegaEta(s) - kappa(s));
+	Vector3d e_y = Vector3d::Unit(1);
+	dbl ALPH = atan(beta(s));
+	dbl ret = -obj_L.zeta(s).dot(e_y) * sin(ALPH) + obj_L.xi(s).dot(e_y) * cos(ALPH);
+	if (ret < 0) {
+		return 1.0e12;
+	}
+	else {
+		return -log(fabs(-obj_L.zeta(s).dot(e_y) * sin(ALPH) + obj_L.xi(s).dot(e_y) * cos(ALPH)));
+	}
 }//-log(fabs(sin(phi(s)))); }
 static dbl objective_integrand(dbl s) {
 #ifdef MY_DEBUG_MODE
@@ -288,8 +297,9 @@ static dbl objective(int n, VectorXd a) {
 #endif
 	vector<dbl> NIZI;
 	CalcConds(NCOORD, a, NCOND, NIZI);
+	initializeForCalcObj(a);
 	//dbl ret = ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&objective_integrand, _1));// + BarrierFunc();
-	dbl ret = Square(NIZI[0]) + Square(NIZI[1]); //+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
+	dbl ret = Square(NIZI[0]) + Square(NIZI[1])  + ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
 	obj_L.terminate();
 	return ret;
 }
@@ -387,8 +397,6 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl> &COND) {
 	vector<dbl>().swap(d);
 	finalizeForCalcConds();
 }
-
-static dbl DistMax(dbl s) { return fabs(cos(atan(beta(s))) / (alphaSdot(s) + omgEta(s))); }
 void initializeForCalcIneq(VectorXd a) {
 	divideCoef(a);
 	MemorizeFunctions();
@@ -559,7 +567,7 @@ static dbl Equality1(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data
 	a_E = GramE.fullPivLu().solve(E);
 	//d.push_back(a_E.dot(E) - 1 / EigVal[0]);
 	//d.push_back(a_A.dot(A) - 1 / EigVal[1]);
-	return a_E.dot(E) - 1 / EigVal[0];
+	return a_E.dot(E)/a_E.dot(a_E) - 1 / EigVal[0];
 	//return a_E.dot(E) - OmgEtaParams(2);
 }
 
@@ -575,7 +583,7 @@ static dbl Equality2(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data
 	//a_E = GramE.fullPivLu().solve(E);
 	//d.push_back(a_E.dot(E) - 1 / EigVal[0]);
 	//d.push_back(a_A.dot(A) - 1 / EigVal[1]);
-	return a_A.dot(A) - 1 / EigVal[1];
+	return a_A.dot(A) / a_A.dot(a_A) - 1 / EigVal[1];
 }
 
 static dbl Equality3(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
@@ -679,15 +687,15 @@ int main(int argc, char** argv)
 	//OPTIMIZER.add_equality_mconstraint(MultiCondFuncWrapper, NULL, EqEps);
 	//OPTIMIZER.add_equality_constraint(Equality1, NULL, 0.001);
 	//OPTIMIZER.add_equality_constraint(Equality2, NULL, 0.001);
-	OPTIMIZER.add_equality_constraint(Equality3, NULL, 0.001);
+	//OPTIMIZER.add_equality_constraint(Equality3, NULL, 0.001);
 	OPTIMIZER.add_equality_constraint(Equality4, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality5, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality6, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality7, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality8, NULL, 0.0001);
-	vector<dbl> x0(NCOORD, -0.0001);
+	vector<dbl> x0(NCOORD, 0.001);
 	x0[NCOORD - 2] = 1.0;
-	OPTIMIZER.set_ftol_rel(1.0e-3);
+	OPTIMIZER.set_ftol_rel(1.0e-4);
 	//OPTIMIZER.set_stopval(1.0e-5);
 	dbl f_opt;
 	try {

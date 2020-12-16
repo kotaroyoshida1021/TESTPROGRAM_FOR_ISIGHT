@@ -20,7 +20,7 @@ static VectorFunction PosFuncL_str, PosFuncU_str;//‹Èü‚ÌˆÊ’uƒxƒNƒgƒ‹‚ÌüŒ`•âŠ®Š
 static ScalarFunction beta, alpha, omegaEta, dist;
 static const int vbase = 16;//Šî’èŠÖ”‚ÌŒÂ”
 static RitzMethod Bt(vbase, length_LL);
-static RitzMethod forOMGET(vbase, length_LL);
+static RitzMethod forOMGET(vbase, length_LL), forDIST(vbase, length_LL);
 
 constexpr int dim = vbase;
 static int NCOORD_PER_SURFACE = 3 * vbase + 5;
