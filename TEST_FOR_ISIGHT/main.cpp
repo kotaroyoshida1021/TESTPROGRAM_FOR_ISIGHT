@@ -53,6 +53,7 @@ static inline dbl DiffSqrt(dbl x, dbl y) {
 		return sqrt(Square(x) - Square(y));
 	}	
 }
+
 static dbl omegaXi_LL(dbl s) { return 0.0; }
 static dbl omegaEta_LL(dbl s) { return 2.917010; }
 static dbl omegaZeta_LL(dbl s) { return 0.0; }
@@ -107,8 +108,8 @@ static void initializing() {
 		DistParams(i) = h_params[i + 3];
 		AlphaParams(i) = h_params[i + 3 * 2];
 	}
-	NCOORD_ALPHA = vbase;
-	NCOORD_ETA = vbase;
+	NCOORD_ALPHA = NDIV;
+	NCOORD_ETA = NDIV;
 	NCOORD = NCOORD_ALPHA + NCOORD_ETA + 2;
 	cout << "NCOORD = " << NCOORD << "\n";
 	fclose(fp);
@@ -175,6 +176,8 @@ static dbl RadiusBasisFuncSdot(dbl s, dbl s_j, VectorXd Params) { return -Params
 	!! MUST USE IN FUNCTIONS WHICH ARE ARGUMENT OF NLOPT !!
 	USAGE : DIVIDE INPUT VECTORS TO OPTIMIZIED FUNCTION
 */
+#define atanSigmoid(s) ((atan(s)*M_2_PI))
+#define sinarctanSigmoid(s)((s/sqrt(Square(s)+1.0)))
 static void divideCoef(VectorXd a) {
 #ifdef MY_DEBUG_MODE
 	cout << a.size();
@@ -182,27 +185,59 @@ static void divideCoef(VectorXd a) {
 	for (int i = 0; i < NCOORD - 2; i++) {
 		if (i < NCOORD_ETA) {
 			//PARAM_E(i) = a[i];
-			forOMGET.a(i) = a(i);
+			OMG_ETA[i] = kappa(i*Ds)*atanSigmoid(a[i]);
 		}
 		else {
 			//PARAM_A(i - NCOORD_ETA) = a[i];
-			Bt.a(i - NCOORD_ETA) = a(i);
+			BETA[i - NCOORD_ETA] = a[i];
 		}
 	}
 	//cout << "\n";
 	Xi0Vec(0) = a[NCOORD - 2];
 	Xi0Vec(1) = a[NCOORD - 1];
+	VectorXd BT = Eigen::Map<Eigen::VectorXd>(&BETA[0]+1, BETA.size()-2);
+	if (BT.size() != Kdim) {
+		cout << "Bt size not match!!!!" << " bt = " << BT.size() << "\n";
+		exit(1);
+	}
+	VectorXd AL = BT.array().atan();
+	forBt = GramA.fullPivLu().solve(AL);
+	forEt = GramE.fullPivLu().solve(Eigen::Map<Eigen::VectorXd>(&OMG_ETA[0]+1, OMG_ETA.size()-2));
 }
 /*
 	THESE WERE FUNCTIONS FOR LINAER INTERPOLATE, EXPRESSED BY REPRODUSING KERNEL HILBERT SPACE 
 */
 
-#define atanSigmoid(s) ((atan(s)*M_2_PI))
-#define sinarctanSigmoid(s)((s/sqrt(Square(s)+1.0)))
-static dbl Beta(dbl s) { return Bt.Function(s); }
+
+static dbl Beta(dbl s) {
+	if (s < Ds) {
+		return BETA[0];
+	}
+	else if (s > length_LL - Ds) {
+		return BETA[NDIV - 1];
+	}
+	else {
+		dbl ret = 0.;
+		for (int i = 0; i < Kdim; i++) {
+			ret += forBt(i) * RadiusBasisFunc(s, (i + 1) * Ds, AlphaParams);
+			return tan(ret);
+		}
+	}
+}
 static dbl omgEta(dbl s) { 
-	return kappa(s)*atanSigmoid(forOMGET.Function(s));
-	//return kappa(s) * sinarctanSigmoid(forOMGET.Function(s));
+	if (s < Ds) {
+		return OMG_ETA[0];
+	}
+	else if (s > length_LL - Ds) {
+		return OMG_ETA[NDIV - 1];
+	}
+	else {
+		dbl ret = 0.;
+		for (int i = 0; i < Kdim; i++) {
+			ret += forEt(i) * RadiusBasisFunc(s, (i + 1) * Ds, AlphaParams);
+			return ret;
+		}
+	}
 }
 static dbl DistMax(dbl s) {
 	return sqrt(1 + beta(s) * beta(s)) / (beta.derivative(s) + (1 + beta(s) * beta(s)) * omgEta(s));
@@ -225,30 +260,24 @@ static dbl omegaXi(dbl s) { return kappa(s) * sin(phi(s)); }
 static dbl omegaZeta(dbl s) { return -omegaXi(s) * Bt.Function(s); }
 
 
-static inline void MemorizeFunctions() {
-	for (int i = 0; i < NDIV; i++) {
-		OMG_ETA[i] = omgEta(i * Ds);
-		BETA[i] = Beta(i * Ds);
-		
-	}
-	
+static inline void MemorizeFunctions() {	
 	//ALPHA = vector<dbl>(Kdim);
 	for (int i = 1; i < Kdim+1; i++) {
 		ALPHA[i - 1] = atan(Beta(i * Ds));
 	}
 	omegaEta.set_Info(Ds, OMG_ETA);
 	beta.set_Info(Ds, BETA);
-	for (int i = 0; i < NDIV; i++) {
-		DIST[i] = Dist(i * Ds);
-	}
-	dist.set_Info(Ds, DIST);
+	//for (int i = 0; i < NDIV; i++) {
+		//DIST[i] = Dist(i * Ds);
+	//}
+	//dist.set_Info(Ds, DIST);
 }
 static Coordinates obj_L(NDIV, length_LL, omegaXi,omegaEtaWrap,omegaZeta);
 //FOR CALCULATE BENDING ENERGY
 static dbl alphaSdot(dbl s) {
 	dbl tmp = 0.0;
 	for (int i = 0; i < Kdim; i++) {
-		tmp += BETA_H(i) * RadiusBasisFuncSdot(s, (i + 1) * Ds, AlphaParams);
+		tmp += forBt(i) * RadiusBasisFuncSdot(s, (i + 1) * Ds, AlphaParams);
 	}
 	return tmp;
 }
@@ -441,7 +470,7 @@ void fprint_for_gnu(string FILE_NAME,VectorXd a) {
 	temp << "\n";
 	for (i = 0; i < NDIV; i++) {
 		//temp << obj_L.POS[i](2) << " " << obj_L.POS[i](0) << " " << obj_L.POS[i](1) << "\n";
-		temp << i * Ds << " " << atan(beta(i * Ds)) << " " << omgEta(i * Ds) << "\n";
+		temp << i * Ds << " " << atan(beta(i * Ds)) << " " << omegaEta(i * Ds) << "\n";
 	}
 	temp << "\n\n";
 	//temp << "\n\n";

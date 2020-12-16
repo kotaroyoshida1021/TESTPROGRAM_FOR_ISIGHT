@@ -18,6 +18,7 @@ static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
 static GaussIntegral<dbl> ScalarIntegralFunc;//スカラー関数積分器関数
 static VectorFunction PosFuncL_str, PosFuncU_str;//曲線の位置ベクトルの線形補完関数
 static ScalarFunction beta, alpha, omegaEta, dist;
+static VectorXd forBt, forEt;
 static const int vbase = 16;//基定関数の個数
 static RitzMethod Bt(vbase, length_LL);
 static RitzMethod forOMGET(vbase, length_LL), forDIST(vbase, length_LL);
