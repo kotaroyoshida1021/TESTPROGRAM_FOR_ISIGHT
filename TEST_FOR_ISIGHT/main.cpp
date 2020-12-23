@@ -107,10 +107,6 @@ static void initializing() {
 		DistParams(i) = h_params[i + 3];
 		AlphaParams(i) = h_params[i + 3 * 2];
 	}
-	NCOORD_ALPHA = vbase;
-	NCOORD_ETA = vbase;
-	NCOORD_DIST = 0;
-	NCOORD = NCOORD_ALPHA + NCOORD_ETA + NCOORD_DIST + 2;
 	cout << "NCOORD = " << NCOORD << "\n";
 	fclose(fp);
 	cout << "all done\n";
@@ -137,37 +133,7 @@ static void determineDimension() {
 	while (fscanf_s(fp, "%le\n", &tmp) != EOF) {
 		EigVal.push_back(tmp);
 	}
-	cout << "EigDiff = " << 1.0/EigVal[0] - OmgEtaParams(2) << ", " << 1.0/EigVal[1] - AlphaParams(2);
-	if (RankE != Kdim) {// IF NULL SPACE EXISTS
-		KerE = lu_decompE.kernel();
-		NCOORD_ETA = Kdim - RankE;
-	}
-	else {
-		MatrixXd EigE = EigVal[0] * MatrixXd::Identity(Kdim,Kdim) - GramE;
-		KerE = EigE.fullPivLu().kernel();
-		NCOORD_ETA = EigE.fullPivLu().dimensionOfKernel();
-	}
-	//Determine ALPHA DIMENSION;
-
-	if (RankA != Kdim) {// IF NULL SPACE EXISTS
-		KerA = lu_decompA.kernel();
-		NCOORD_ALPHA = Kdim - RankA;
-	}
-	else {
-		MatrixXd Eig = EigVal[1] * MatrixXd::Identity(Kdim, Kdim) - GramA;
-		FullPivLU<MatrixXd> lu_decompEig(Eig);
-		KerA = lu_decompEig.kernel();
-		NCOORD_ALPHA = Kdim - lu_decompEig.rank();
-	}
-	PARAM_E = VectorXd::Zero(NCOORD_ETA);
-	PARAM_D = VectorXd::Zero(NCOORD_DIST);
-	PARAM_A = VectorXd::Zero(NCOORD_ALPHA);
-	cout << "KerSize->" << KerA.size() / Kdim << ", " << KerE.size() / Kdim << ", " << KerD.size() / Kdim << "...";
-	//NCOORD = NCOORD_ALPHA + NCOORD_ETA + NCOORD_DIST + 2;
-	NCOORD_ALPHA = vbase;
-	NCOORD_ETA = vbase;
-	NCOORD = NCOORD_ALPHA + NCOORD_ETA + 2;
-	cout << "NCOORD = " << NCOORD << "\n";
+	//cout << "EigDiff = " << 1.0/EigVal[0] - OmgEtaParams(2) << ", " << 1.0/EigVal[1] - AlphaParams(2);
 }
 
 static dbl RadiusBasisFunc(dbl s_i, dbl s_j, VectorXd Params) { return Params(0) * exp(-0.5 * Square(s_i - s_j) / (Params(1) * Params(1))); }
@@ -181,16 +147,23 @@ static void divideCoef(VectorXd a) {
 	cout << a.size();
 #endif
 	for (int i = 0; i < NCOORD - 2; i++) {
+		cout << i << "-th...";
+		cout << NCOORD;
 		if (i < NCOORD_ETA) {
 			//PARAM_E(i) = a[i];
 			forOMGET.a(i) = a(i);
 		}
-		else if(i>NCOORD_ETA&&i<NCOORD_ETA+NCOORD_ALPHA){
+		else if((i>=NCOORD_ETA)&&(i<NCOORD_ETA+NCOORD_ALPHA)){
+			int ITER = i - NCOORD_ETA;
+			cout << "Iter = " << ITER << "\n";
 			//PARAM_A(i - NCOORD_ETA) = a[i];
-			Bt.a(i - NCOORD_ETA) = a(i);
+			Bt.a(ITER) = a(i);
 		}
 		else {
-			//forDIST.a[i-NCOORD_ETA + NCOORD_ALPHA] = a(i);
+			int ITER = i - NCOORD_ETA + NCOORD_ALPHA;
+			cout << "Iter = " << ITER << "\n";
+			forDIST.a(ITER) = a(i);
+			cout << a(i) << ", " << i - NCOORD_ETA + NCOORD_ALPHA << "\n";
 		}
 	}
 	//cout << "\n";
@@ -198,28 +171,21 @@ static void divideCoef(VectorXd a) {
 	Xi0Vec(1) = a[NCOORD - 1];
 }
 /*
-	THESE WERE FUNCTIONS FOR LINAER INTERPOLATE, EXPRESSED BY REPRODUSING KERNEL HILBERT SPACE 
+	THESE WERE FUNCTIONS FOR LINAER INTERPOLATE,EXPRESSED BY RITZ METHOD
 */
 
 #define atanSigmoid(s) ((atan(s)*M_2_PI))
 #define sinarctanSigmoid(s)((s/sqrt(Square(s)+1.0)))
+static dbl Alpha(dbl s) { return atan(Bt.Function(s)); }
 static dbl Beta(dbl s) { return Bt.Function(s); }
-static dbl omgEta(dbl s) { 
-	return kappa(s)*atanSigmoid(forOMGET.Function(s));
-	//return kappa(s) * sinarctanSigmoid(forOMGET.Function(s));
-}
+static dbl omgEta(dbl s) {  return kappa(s)*atanSigmoid(forOMGET.Function(s)); }
 static dbl DistMax(dbl s) {
-	return fabs(sqrt(1 + beta(s) * beta(s)) / (beta.derivative(s) + (1 + beta(s) * beta(s)) * omgEta(s)));
+	dbl aSdot = Bt.Derivative(s) / (1 + Square(Beta(s)));
+	return (cos(Alpha(s)) / (aSdot + omgEta(s)));
 }
 #define SIGMOID(s) (1.0/(1.0+exp(-s)))
 static dbl Dist(dbl s) {
-	if (s == 0.0 || s == length_LL) {
-		return 0.0;
-	}
-	else {
-		return DistMax(s) * SIGMOID(forDIST.Function(s));
-		//return forDIST.Function(s);
-	}
+	return forDIST.Function(s);
 }
 /*
 	THESE WERE FUNCTIONS FOR OBJECTIVE AND CONDITIONS
@@ -253,42 +219,16 @@ static inline void MemorizeFunctions() {
 	beta.set_Info(Ds, BETA);
 	for (int i = 0; i < NDIV; i++) {
 		DIST[i] = Dist(i * Ds);
+		cout << DIST[i] << ", ";
 	}
 	dist.set_Info(Ds, DIST);
 }
 static Coordinates obj_L(NDIV, length_LL, omegaXi,omegaEtaWrap,omegaZeta);
 //FOR CALCULATE BENDING ENERGY
-static dbl alphaSdot(dbl s) {
-	dbl tmp = 0.0;
-	for (int i = 0; i < Kdim; i++) {
-		tmp += BETA_H(i) * RadiusBasisFuncSdot(s, (i + 1) * Ds, AlphaParams);
-	}
-	return tmp;
-}
 //PROTOTYPE DECREARE
 static dbl IntegrandForCond_Zeta(dbl s);
 static dbl IntegrandForCond_Pos(dbl s);
 static dbl IntegrandForCond_omgEta(dbl s);
-
-static dbl BarrierForIntegrandFunc(dbl s) {
-	return fabs(kappa(s) - fabs(omegaEta(s)));
-}
-static dbl BarrierFunc() {
-	//return 1 / Square(sin(phi(s)));
-	//return 1 / Square(omegaEta(s) - kappa(s));
-	dbl ret = 0.;
-	dbl th = 0.;
-	dbl s = 0.;
-	for (int i = 0; i < NDIV; i++) {
-		//th = acos(obj_L.ETA[i].dot(obj_LL.ETA[i]));
-		s = i * Ds;
-		//th = beta(s) + tan(ScalarIntegralFunc.GaussIntegralFunc(0, length_LL, omegaEtaWrap));
-		//ret += 1 / Square(BarrierForIntegrandFunc(i * Ds)) + 1 / Square(kappa(s) - omegaXi(s));
-		//ret += 1 / (omegaXi(i * Ds) * omegaXi(i * Ds)) + 1 / (omegaEta(i * Ds) * omegaEta(i * Ds));
-		ret += 1 / Square(cos(phi(i * Ds)));
-	}
-	return (1.0)*ret / (NDIV - 1);
-}//-log(fabs(sin(p\hi(s)))); }
 static dbl objective_integrand(dbl s) {
 #ifdef MY_DEBUG_MODE
 	cout << "Now..." << __func__;
@@ -299,12 +239,7 @@ static dbl objective_integrand(dbl s) {
 
 }
 static inline void initializeForCalcConds(VectorXd a);
-void initializeForCalcObj(VectorXd a) {
-	//divideCoef(a);
-	//MemorizeFunctions();
-	initializeForCalcConds(a);
-}
-
+void initializeForCalcObj(VectorXd a) { initializeForCalcConds(a); }
 
 static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl>& COND);
 static dbl objective(int n, VectorXd a) {
@@ -316,11 +251,13 @@ static dbl objective(int n, VectorXd a) {
 	cout << "done\n";
 #endif
 	vector<dbl> NIZI;
-	dbl param = 1.0e-2;
+	Vector3d L1_PARAM;
+	L1_PARAM << 1.0e-2, 1.0e-2, 1.0e-3;
+	
 	CalcConds(NCOORD, a, NCOND, NIZI);
 	initializeForCalcObj(a);
-	//dbl ret = ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&objective_integrand, _1)) + BarrierFunc();
-	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + param * forOMGET.a.norm() + BarrierFunc();//+ Square(NIZI[2]) + BarrierFunc();//+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
+	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + Square(NIZI[2]);//+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
+	ret += L1_PARAM(0) * forOMGET.a.lpNorm<1>() + L1_PARAM(1) * Bt.a.lpNorm<1>() + L1_PARAM(2) * forDIST.a.lpNorm<1>();//L1ê≥ë•âª
 	obj_L.terminate();
 	return ret;
 }
@@ -398,16 +335,17 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl> &COND) {
 	a_A = GramA.fullPivLu().solve(A);
 	a_E = GramE.fullPivLu().solve(E);
 	a_D = GramD.fullPivLu().solve(D);
-	//d.push_back((a_E.dot(E)/Square(E.norm()) - 1 / EigVal[0]));
 	d.push_back(a_E.dot(E) / (a_E.norm() * a_E.norm()) - OmgEtaParams(2));
-	//d.push_back((a_A.dot(A)/Square(A.norm()) -  1 / EigVal[1]));
 	d.push_back(a_A.dot(A) / (a_A.norm() * a_A.norm()) - AlphaParams(2));
 	d.push_back(a_D.dot(D) / a_D.dot(a_D) - DistParams(2));
 	for (int i = 0; i < 3; i++) {
 		if (isnan(d[i])) {
 			cout << "isNaN detected:-> I = " << i << "\n";
+			for (int i = 0; i < D.size(); i++) cout << D[i] << ", ";
+			cout << "\n";
 			exit(1);
 		}
+
 	}
 	COND = d;
 	/*
@@ -446,6 +384,11 @@ void initializeForCalcIneq(VectorXd a) {
 	}
 	obj_L.DetermineAxies(xi0, eta0, zeta0);
 }
+
+static Vector3d U_POS(dbl s) {
+	Vector3d gene = -obj_L.zeta(s) * sin(Alpha(s)) + obj_L.xi(s) * cos(Alpha(s));
+	return obj_L.pos(s) + gene * Dist(s);
+}
 static void calcIneqs(int n, VectorXd &a,int nineq,vector<dbl> &INEQ) {
 #ifdef MY_DEBUG_MODE
 	cout << "now..." << __func__ << "...";
@@ -454,8 +397,9 @@ static void calcIneqs(int n, VectorXd &a,int nineq,vector<dbl> &INEQ) {
 	initializeForCalcIneq(a);
 	for (int i = 0; i < NDIV; i++) {
 		//I.push_back(-obj_L.XI[i].dot(obj_LL.XI[i]));
-		I.push_back(-obj_L.XI[i].dot(Vector3d::Unit(0)));
-		//I.push_back(-DIST[i]);
+		I.push_back(U_POS(i * Ds).dot(Vector3d::Unit(0)));
+		I.push_back(-DIST[i]);
+		I.push_back(DIST[i] - DistMax(i * Ds));
 	}
 	//INEQ = Eigen::Map<Eigen::VectorXd>(&I[0], I.size());
 	//INEQ = I;
@@ -784,7 +728,7 @@ int main(int argc, char** argv)
 	OPTIMIZER.add_equality_constraint(Equality6, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality7, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality8, NULL, 0.0001);
-	//OPTIMIZER.add_inequality_mconstraint(MultiIneqFuncWrapper, NULL, EqEps);
+	OPTIMIZER.add_inequality_mconstraint(MultiIneqFuncWrapper, NULL, EqEps);
 	vector<dbl> x0(NCOORD, 0.001);
 	x0[NCOORD - 2] = 1.0;
 	OPTIMIZER.set_ftol_rel(1.0e-4);

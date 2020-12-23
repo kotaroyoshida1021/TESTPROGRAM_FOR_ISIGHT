@@ -6,11 +6,11 @@
 #define	alloc(type,size) (type *)malloc((size)*sizeof(type))
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251//THE QUANTITY OF DIVISION USING DISCRETIZATION
-static constexpr int NCOND = 6, NINEQ = NDIV;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
+static constexpr int NCOND = 6, NINEQ = 3*NDIV;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
 static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:initializing
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
-static int RankA, RankE, RankD, NCOORD_ALPHA, NCOORD_ETA, NCOORD_DIST,NCOORD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
+static int RankA, RankE, RankD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
 const string file_name = "test20201113vbase8V3";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
@@ -18,9 +18,15 @@ static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
 static GaussIntegral<dbl> ScalarIntegralFunc;//スカラー関数積分器関数
 static VectorFunction PosFuncL_str, PosFuncU_str;//曲線の位置ベクトルの線形補完関数
 static ScalarFunction beta, alpha, omegaEta, dist;
-static const int vbase = 8;//基定関数の個数
+#define vbase 8//基定関数の個数
 static RitzMethod Bt(vbase, length_LL);
 static RitzMethod forOMGET(vbase, length_LL), forDIST(vbase, length_LL);
+
+#define NCOORD_ETA vbase
+#define NCOORD_ALPHA vbase
+#define NCOORD_DIST vbase
+
+#define NCOORD 3*vbase + 2
 
 constexpr int dim = vbase;
 static int NCOORD_PER_SURFACE = 3 * vbase + 5;
