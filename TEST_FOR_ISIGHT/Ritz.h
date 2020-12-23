@@ -11,12 +11,14 @@ using namespace Eigen;
 class RitzMethod {
 private:
 	vector<VectorXd, Eigen::aligned_allocator<VectorXd>> BaseFunctions;
+	vector<VectorXd, Eigen::aligned_allocator<VectorXd>> BaseFunctionsdot;
 	dbl length;
 public:
 	RitzMethod(int nvar,dbl Length);//nvar‚ÍŒW”‚Ì”,Length‚à“n‚·
 	VectorXd a;
 	dbl Function(dbl);
 	void terminates();
+	dbl Derivative(dbl s);
 };
 
 static const int BMAX = 10001;
