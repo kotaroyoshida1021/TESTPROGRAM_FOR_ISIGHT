@@ -175,7 +175,7 @@ static dbl DistMax(dbl s) {
 #define SIGMOID(s) (1.0/(1.0+exp(-s)))
 static dbl Dist(dbl s) {
 	//始端と終端を合わせるための項追加
-	return s*(length_LL-s)*forDIST.Function(s);
+	return forDIST.Function(s);
 }
 /*
 	THESE WERE FUNCTIONS FOR OBJECTIVE AND CONDITIONS
@@ -215,6 +215,31 @@ static Coordinates obj_L(NDIV, length_LL, omegaXi,omegaEtaWrap,omegaZeta);
 static dbl IntegrandForCond_Zeta(dbl s);
 static dbl IntegrandForCond_Pos(dbl s);
 static dbl IntegrandForCond_omgEta(dbl s);
+
+static dbl sizeIntegrand(dbl s, dbl t) {
+	return fabs(cos(Alpha(s)) - t * (Bt.Derivative(s) / (1 + Square(beta(s))) + omegaEta(s)));
+}
+
+static dbl sizeItegrandSdot(dbl s) {
+	return ScalarIntegralFunc.GaussIntegralFunc2Dmarginal2(s,0.0,Dist(s), sizeIntegrand);
+}
+
+static dbl size() {
+	return ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, sizeItegrandSdot);
+}
+
+static dbl volumeIntegrand(dbl s, dbl t) {
+	Vector3d gene = -obj_L.zeta(s) * sin(Alpha(s)) + obj_L.xi(s) * cos(Alpha(s));
+	return obj_L.pos(s)(1) + t * gene(1);
+}
+
+static dbl volumeIntegrandSdot(dbl s) {
+	return ScalarIntegralFunc.GaussIntegralFunc2Dmarginal2(s, 0.0, Dist(s), volumeIntegrand);
+}
+
+static dbl volume() {
+	return ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, volumeIntegrandSdot);
+}
 static dbl objective_integrand(dbl s) {
 #ifdef MY_DEBUG_MODE
 	cout << "Now..." << __func__;
@@ -238,12 +263,12 @@ static dbl objective(int n, VectorXd a) {
 #endif
 	vector<dbl> NIZI;
 	Vector3d L1_PARAM;
-	L1_PARAM << 1.0e-3, 1.0e-3, 1.0e-3;
+	L1_PARAM << 0.0, 0.0, 0.0;
 	
 	CalcConds(NCOORD, a, NCOND, NIZI);
 	initializeForCalcObj(a);
-	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + Square(NIZI[2]);
-	//ret += L1_PARAM(0) * forOMGET.a.lpNorm<1>() + L1_PARAM(1) * Bt.a.lpNorm<1>() + L1_PARAM(2) * forDIST.a.lpNorm<1>();//L1正則化
+	dbl ret = Square(NIZI[0]) + 1 / Square(volume());
+	ret += L1_PARAM(0) * forOMGET.a.lpNorm<1>() + L1_PARAM(1) * Bt.a.lpNorm<1>() + L1_PARAM(2) * forDIST.a.lpNorm<1>();//L1正則化
 	obj_L.terminate();
 	return ret;
 }
@@ -286,6 +311,12 @@ static dbl IntegrandForCond_Pos(dbl s) {
 	VectorXd diff = obj_L.pos(s) - obj_LL.pos(s);
 	return diff.norm();
 }
+
+static dbl IntegrandForConds_Pos3d(int i,dbl s) {
+	VectorXd diff = obj_L.pos(s) - obj_LL.pos(s);
+	return diff(i);
+}
+
 static dbl IntegrandForCond_omgEta(dbl s) {
 	Vector3d zetaSdot = -omegaXi_LL(s) * obj_LL.eta(s) + omegaEta_LL(s) * obj_LL.xi(s);
 	return Square((zetaSdot.dot(obj_L.xi(s)) - omegaEta(s)) / kappa(s));
@@ -321,10 +352,18 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl> &COND) {
 	a_A = GramA.fullPivLu().solve(A);
 	a_E = GramE.fullPivLu().solve(E);
 	a_D = GramD.fullPivLu().solve(D);
+	VectorXd ALL = VectorXd::Zero(3 * Kdim);
+	for (int i = 0; i < Kdim; i++) {
+		ALL(i) = a_A(i);
+		ALL(i + Kdim) = a_E(i);
+		ALL(i + 2 * Kdim) = a_D(i);
+	}
+	dbl lambda_min = fmin(fmin(AlphaParams(2), DistParams(2)), OmgEtaParams(2));
 	d.push_back(a_E.dot(E) / (a_E.norm() * a_E.norm()) - OmgEtaParams(2));
 	d.push_back(a_A.dot(A) / (a_A.norm() * a_A.norm()) - AlphaParams(2));
 	d.push_back(a_D.dot(D) / (a_D.norm() * a_D.norm()) - DistParams(2));
-	for (int i = 0; i < 3; i++) {
+	//d.push_back((a_E.dot(E) + a_A.dot(A) + a_D.dot(D)) / ALL.dot(ALL) - lambda_min);
+	for (int i = 0; i < 1; i++) {
 		if (isnan(d[i])) {
 			cout << "isNaN detected:-> I = " << i << "\n";
 			for (int i = 0; i < D.size(); i++) cout << D[i] << ", ";
@@ -385,9 +424,10 @@ static void calcIneqs(int n, VectorXd &a,int nineq,vector<dbl> &INEQ) {
 		//I.push_back(-obj_L.XI[i].dot(obj_LL.XI[i]));
 		//I.push_back(U_POS(i * Ds).dot(Vector3d::Unit(0)));
 		I.push_back(-DIST[i]);
-		I.push_back(DIST[i] - DistMax(i * Ds));
+		//I.push_back(DIST[i] - DistMax(i * Ds));
 		I.push_back(-U_POS(i * Ds)(0));
 	}
+	I.push_back(1.0e-3 - volume());
 	//INEQ = Eigen::Map<Eigen::VectorXd>(&I[0], I.size());
 	//INEQ = I;
 	INEQ = I;
@@ -669,6 +709,22 @@ static dbl Equality8(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data
 	return ret;
 }
 
+static dbl Dist0(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	initializeForCalcObj(coef);
+	return dist(0);
+}
+
+static dbl DistL(const vector<dbl>& x, vector<dbl>& grad, void* my_func_data) {
+	VectorXd coef;
+	vector<dbl> tmp = x;
+	coef = Eigen::Map<Eigen::VectorXd>(&tmp[0], tmp.size());
+	initializeForCalcObj(coef);
+	return dist(length_LL);
+}
+
 
 int main(int argc, char** argv)
 {
@@ -716,9 +772,13 @@ int main(int argc, char** argv)
 	OPTIMIZER.add_equality_constraint(Equality6, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality7, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality8, NULL, 0.0001);
+	OPTIMIZER.add_equality_constraint(Dist0, NULL, 0.0001);
+	OPTIMIZER.add_equality_constraint(DistL, NULL, 0.0001);
+
 	OPTIMIZER.add_inequality_mconstraint(MultiIneqFuncWrapper, NULL, EqEps);
-	vector<dbl> x0(NCOORD, 0.000001);
-	x0[NCOORD - 2] = 1.0;
+	vector<dbl> x0(NCOORD, 0.0001);
+	x0[NCOORD - 2] = sin(M_PI_4);
+	x0[NCOORD - 1] = cos(M_PI_4);
 	OPTIMIZER.set_ftol_rel(1.0e-4);
 	OPTIMIZER.set_maxeval(2000000);
 	//OPTIMIZER.set_stopval(1.0e-5);
