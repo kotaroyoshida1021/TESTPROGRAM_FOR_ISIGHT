@@ -389,16 +389,16 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl> &COND) {
 	for (int i = 0; i < Kdim; i++) {
 		E[i] = OMG_ETA[i + 1];
 	}
-	VectorXd D = Eigen::Map<Eigen::VectorXd>(&DIST[0] + 1, DIST.size() - 2);
+	//VectorXd D = Eigen::Map<Eigen::VectorXd>(&DIST[0] + 1, DIST.size() - 2);
 	VectorXd a_A, a_E, a_D;
 	a_A = GramA.fullPivLu().solve(A);
 	a_E = GramE.fullPivLu().solve(E);
-	a_D = GramD.fullPivLu().solve(D);
+	//a_D = GramD.fullPivLu().solve(D);
 	//d.push_back((a_E.dot(E)/Square(E.norm()) - 1 / EigVal[0]));
 	d.push_back(a_E.dot(E) / (a_E.norm() * a_E.norm()) - OmgEtaParams(2));
 	//d.push_back((a_A.dot(A)/Square(A.norm()) -  1 / EigVal[1]));
 	d.push_back(a_A.dot(A) / (a_A.norm() * a_A.norm()) - AlphaParams(2));
-	d.push_back(a_D.dot(D) / a_D.dot(a_D) - DistParams(2));
+	//d.push_back(a_D.dot(D) / a_D.dot(a_D) - DistParams(2));
 	for (int i = 0; i < 3; i++) {
 		if (isnan(d[i])) {
 			cout << "isNaN detected:-> I = " << i << "\n";
