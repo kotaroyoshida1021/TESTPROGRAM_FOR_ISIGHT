@@ -147,23 +147,17 @@ static void divideCoef(VectorXd a) {
 	cout << a.size();
 #endif
 	for (int i = 0; i < NCOORD - 2; i++) {
-		cout << i << "-th...";
-		cout << NCOORD;
 		if (i < NCOORD_ETA) {
 			//PARAM_E(i) = a[i];
 			forOMGET.a(i) = a(i);
 		}
 		else if((i>=NCOORD_ETA)&&(i<NCOORD_ETA+NCOORD_ALPHA)){
 			int ITER = i - NCOORD_ETA;
-			cout << "Iter = " << ITER << "\n";
-			//PARAM_A(i - NCOORD_ETA) = a[i];
 			Bt.a(ITER) = a(i);
 		}
 		else {
-			int ITER = i - NCOORD_ETA + NCOORD_ALPHA;
-			cout << "Iter = " << ITER << "\n";
-			forDIST.a(ITER) = a(i);
-			cout << a(i) << ", " << i - NCOORD_ETA + NCOORD_ALPHA << "\n";
+			int ITER2 = i - (NCOORD_ETA + NCOORD_ALPHA);
+			forDIST.a(ITER2) = a(i);
 		}
 	}
 	//cout << "\n";
@@ -185,7 +179,8 @@ static dbl DistMax(dbl s) {
 }
 #define SIGMOID(s) (1.0/(1.0+exp(-s)))
 static dbl Dist(dbl s) {
-	return forDIST.Function(s);
+	//始端と終端を合わせるための項追加
+	return s*(length_LL-s)*forDIST.Function(s);
 }
 /*
 	THESE WERE FUNCTIONS FOR OBJECTIVE AND CONDITIONS
@@ -219,7 +214,6 @@ static inline void MemorizeFunctions() {
 	beta.set_Info(Ds, BETA);
 	for (int i = 0; i < NDIV; i++) {
 		DIST[i] = Dist(i * Ds);
-		cout << DIST[i] << ", ";
 	}
 	dist.set_Info(Ds, DIST);
 }
@@ -252,12 +246,12 @@ static dbl objective(int n, VectorXd a) {
 #endif
 	vector<dbl> NIZI;
 	Vector3d L1_PARAM;
-	L1_PARAM << 1.0e-2, 1.0e-2, 1.0e-3;
+	L1_PARAM << 1.0e-3, 1.0e-3, 1.0e-3;
 	
 	CalcConds(NCOORD, a, NCOND, NIZI);
 	initializeForCalcObj(a);
-	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + Square(NIZI[2]);//+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
-	ret += L1_PARAM(0) * forOMGET.a.lpNorm<1>() + L1_PARAM(1) * Bt.a.lpNorm<1>() + L1_PARAM(2) * forDIST.a.lpNorm<1>();//L1正則化
+	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + Square(NIZI[2]);
+	//ret += L1_PARAM(0) * forOMGET.a.lpNorm<1>() + L1_PARAM(1) * Bt.a.lpNorm<1>() + L1_PARAM(2) * forDIST.a.lpNorm<1>();//L1正則化
 	obj_L.terminate();
 	return ret;
 }
@@ -337,7 +331,7 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl> &COND) {
 	a_D = GramD.fullPivLu().solve(D);
 	d.push_back(a_E.dot(E) / (a_E.norm() * a_E.norm()) - OmgEtaParams(2));
 	d.push_back(a_A.dot(A) / (a_A.norm() * a_A.norm()) - AlphaParams(2));
-	d.push_back(a_D.dot(D) / a_D.dot(a_D) - DistParams(2));
+	d.push_back(a_D.dot(D) / (a_D.norm() * a_D.norm()) - DistParams(2));
 	for (int i = 0; i < 3; i++) {
 		if (isnan(d[i])) {
 			cout << "isNaN detected:-> I = " << i << "\n";
@@ -397,7 +391,7 @@ static void calcIneqs(int n, VectorXd &a,int nineq,vector<dbl> &INEQ) {
 	initializeForCalcIneq(a);
 	for (int i = 0; i < NDIV; i++) {
 		//I.push_back(-obj_L.XI[i].dot(obj_LL.XI[i]));
-		I.push_back(U_POS(i * Ds).dot(Vector3d::Unit(0)));
+		//I.push_back(U_POS(i * Ds).dot(Vector3d::Unit(0)));
 		I.push_back(-DIST[i]);
 		I.push_back(DIST[i] - DistMax(i * Ds));
 	}
@@ -715,7 +709,7 @@ int main(int argc, char** argv)
 	}
 	opt OPTIMIZER(LN_AUGLAG, NCOORD);
 	//nlopt::opt local_opt(LN_SBPLX, NCOORD);
-	nlopt::opt local_opt(LN_SBPLX, NCOORD);
+	nlopt::opt local_opt(LN_NELDERMEAD, NCOORD);
 	vector<dbl> EqEps(NINEQ, 0.01);
 	OPTIMIZER.set_local_optimizer(local_opt);
 	OPTIMIZER.set_min_objective(objectiveWrapper, NULL);

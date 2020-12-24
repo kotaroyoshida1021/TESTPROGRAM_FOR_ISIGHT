@@ -6,7 +6,7 @@
 #define	alloc(type,size) (type *)malloc((size)*sizeof(type))
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251//THE QUANTITY OF DIVISION USING DISCRETIZATION
-static constexpr int NCOND = 6, NINEQ = 3*NDIV;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
+static constexpr int NCOND = 6, NINEQ = 2*NDIV;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
 static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:initializing
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
