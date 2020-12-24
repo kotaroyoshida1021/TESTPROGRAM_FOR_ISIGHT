@@ -121,11 +121,6 @@ static void memorizeGramMatrix() {
 }
 //Determine the dimension of coefficient for optimizingŽg‚í‚Ë
 static void determineDimension() {
-	FullPivLU<MatrixXd> lu_decompA(GramA), lu_decompE(GramE), lu_decompD(GramD);
-	cout << "rank = " << lu_decompA.rank() << ", " << lu_decompE.rank() << ", " << lu_decompD.rank() << "...";
-	RankA = lu_decompA.rank();
-	RankE = lu_decompE.rank();
-	RankD = lu_decompD.rank();
 	FILE* fp;
 	errno_t err = fopen_s(&fp, "EIGVEC_MAX.txt", "r");
 	//vector<dbl> EigVal;
@@ -190,15 +185,12 @@ static dbl phi(dbl s) { return acos(omegaEta(s)/kappa(s)); }
 static dbl omegaXi(dbl s) { return kappa(s) * sin(phi(s)); }
 static dbl omegaZeta(dbl s) { return -omegaXi(s) * Bt.Function(s); }
 
-static dbl omgEtaForCondsIntegrand(dbl s) {
-	return 2.0 * kappa(s) * beta(s);
-}
+static dbl omgEtaForCondsIntegrand(dbl s) { return 2.0 * kappa(s) * beta(s); }
 
 static dbl omgEtaForConds(dbl s) {
 	dbl F = omegaEta(0) / kappa(0);
 	return kappa(s) * (-1 + F * exp(ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, omgEtaForCondsIntegrand))) / (1 + F * exp(ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, omgEtaForCondsIntegrand)));
 }
-
 
 static inline void MemorizeFunctions() {
 	for (int i = 0; i < NDIV; i++) {
@@ -394,6 +386,7 @@ static void calcIneqs(int n, VectorXd &a,int nineq,vector<dbl> &INEQ) {
 		//I.push_back(U_POS(i * Ds).dot(Vector3d::Unit(0)));
 		I.push_back(-DIST[i]);
 		I.push_back(DIST[i] - DistMax(i * Ds));
+		I.push_back(-U_POS(i * Ds)(0));
 	}
 	//INEQ = Eigen::Map<Eigen::VectorXd>(&I[0], I.size());
 	//INEQ = I;
@@ -418,7 +411,7 @@ void fprint_for_gnu(string FILE_NAME,VectorXd a) {
 	ofstream input;
 	temp.open(FILE_NAME, std::ios::out);
 	for (i = 0; i < NDIV; i++) {
-		//temp << obj_LL.POS[i](2) << " " << obj_LL.POS[i](0) << " " << obj_LL.POS[i](1) << "\n";
+		temp << obj_LL.POS[i](2) << " " << obj_LL.POS[i](0) << " " << obj_LL.POS[i](1) << "\n";
 	}
 	temp << "\n";
 	Vector3d Gene = Vector3d::Zero();
@@ -427,7 +420,8 @@ void fprint_for_gnu(string FILE_NAME,VectorXd a) {
 		//al = atan(BETA[i]);
 		//Gene = (-obj_L.ZETA[i] * sin(al) + obj_L.XI[i] * cos(al)) * DIST[i];
 		//temp << obj_L.POS[i](2) + Gene(2) << " " << obj_L.POS[i](0) + Gene(0) << " " << obj_L.POS[i](1) + Gene(1) << "\n";
-		temp << i * Ds << " " << atan(beta(i * Ds)) << " " << omegaEta(i * Ds) << "\n";
+		//temp << i * Ds << " " << atan(beta(i * Ds)) << " " << omegaEta(i * Ds) << "\n";
+		temp << U_POS(i * Ds)(2) << " " << U_POS(i * Ds)(0) << " " << U_POS(i * Ds)(1) << "\n";
 	}
 	temp << "\n\n";
 	//temp << "\n\n";
@@ -540,9 +534,9 @@ static dbl objectiveWrapper(const vector<dbl> &x, vector<dbl> &grad, void *my_fu
 	if (EVAL_COUNTER == 0||EVAL_COUNTER % 100 == 0) {
 		//fprintf_s(stderr, "\r%8d | %6.3e \r", EVAL_COUNTER, ret);
 		cout << "\rEVAL_COUNTER = " << scientific << setprecision(5) << EVAL_COUNTER << " f = " << scientific << setprecision(5) << ret << ", ";
-		//string command = "splot \"" + F + "\" u 1:2:3 w lp pt 2 t \"k = " + ss.str() + "\n";
-		gp.Command("set y2tics");
-		string command = "plot \"" + F + "\" u 1:2 w l axis x1y1 t \"k = " + ss.str() +" Beta\", \"" + F + "\" u 1:3 w l axis x1y2 t \"k = " + ss.str() + " omgEta \n";
+		string command = "splot \"" + F + "\" u 1:2:3 w lp pt 2 t \"k = " + ss.str() + "\n";
+		//gp.Command("set y2tics");
+		//string command = "plot \"" + F + "\" u 1:2 w l axis x1y1 t \"k = " + ss.str() +" Beta\", \"" + F + "\" u 1:3 w l axis x1y2 t \"k = " + ss.str() + " omgEta \n";
 		gp.Command(command.c_str());
 		if (EVAL_COUNTER % 100 == 0) {
 			vector<dbl> CON(NCOND);
@@ -709,7 +703,7 @@ int main(int argc, char** argv)
 	}
 	opt OPTIMIZER(LN_AUGLAG, NCOORD);
 	//nlopt::opt local_opt(LN_SBPLX, NCOORD);
-	nlopt::opt local_opt(LN_NELDERMEAD, NCOORD);
+	nlopt::opt local_opt(LN_SBPLX, NCOORD);
 	vector<dbl> EqEps(NINEQ, 0.01);
 	OPTIMIZER.set_local_optimizer(local_opt);
 	OPTIMIZER.set_min_objective(objectiveWrapper, NULL);
@@ -723,7 +717,7 @@ int main(int argc, char** argv)
 	OPTIMIZER.add_equality_constraint(Equality7, NULL, 0.0001);
 	OPTIMIZER.add_equality_constraint(Equality8, NULL, 0.0001);
 	OPTIMIZER.add_inequality_mconstraint(MultiIneqFuncWrapper, NULL, EqEps);
-	vector<dbl> x0(NCOORD, 0.001);
+	vector<dbl> x0(NCOORD, 0.000001);
 	x0[NCOORD - 2] = 1.0;
 	OPTIMIZER.set_ftol_rel(1.0e-4);
 	OPTIMIZER.set_maxeval(2000000);
