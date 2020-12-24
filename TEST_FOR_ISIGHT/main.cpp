@@ -185,7 +185,7 @@ static void divideCoef(VectorXd a) {
 			//PARAM_E(i) = a[i];
 			forOMGET.a(i) = a(i);
 		}
-		else if(i>NCOORD_ETA&&i<NCOORD_ETA+NCOORD_ALPHA){
+		else if(i>=NCOORD_ETA&&i<NCOORD_ETA+NCOORD_ALPHA){
 			//PARAM_A(i - NCOORD_ETA) = a[i];
 			Bt.a(i - NCOORD_ETA) = a(i);
 		}
@@ -280,12 +280,8 @@ static dbl BarrierFunc() {
 	dbl th = 0.;
 	dbl s = 0.;
 	for (int i = 0; i < NDIV; i++) {
-		//th = acos(obj_L.ETA[i].dot(obj_LL.ETA[i]));
 		s = i * Ds;
-		//th = beta(s) + tan(ScalarIntegralFunc.GaussIntegralFunc(0, length_LL, omegaEtaWrap));
-		//ret += 1 / Square(BarrierForIntegrandFunc(i * Ds)) + 1 / Square(kappa(s) - omegaXi(s));
-		//ret += 1 / (omegaXi(i * Ds) * omegaXi(i * Ds)) + 1 / (omegaEta(i * Ds) * omegaEta(i * Ds));
-		ret += 1 / Square(cos(phi(i * Ds)));
+		ret += 1 / Square(sin(phi(i * Ds)));
 	}
 	return (1.0)*ret / (NDIV - 1);
 }//-log(fabs(sin(p\hi(s)))); }
@@ -320,7 +316,7 @@ static dbl objective(int n, VectorXd a) {
 	CalcConds(NCOORD, a, NCOND, NIZI);
 	initializeForCalcObj(a);
 	//dbl ret = ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&objective_integrand, _1)) + BarrierFunc();
-	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + param * forOMGET.a.norm() + BarrierFunc();//+ Square(NIZI[2]) + BarrierFunc();//+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
+	dbl ret = Square(NIZI[0]) + Square(NIZI[1]) + param*(forOMGET.a.lpNorm<2>() + 5*Bt.a.lpNorm<2>());//+ Square(NIZI[2]) + BarrierFunc();//+ ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, BarrierFunc);
 	obj_L.terminate();
 	return ret;
 }
