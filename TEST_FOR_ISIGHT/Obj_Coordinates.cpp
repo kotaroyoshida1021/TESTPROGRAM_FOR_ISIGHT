@@ -43,9 +43,11 @@ void Coordinates::DetermineAxies(Vector3d& initXI, Vector3d& initETA, Vector3d& 
 	InitializeVetctor();
 	//cout << "start\n";
 	XI.push_back(initXI); ETA.push_back(initETA); ZETA.push_back(initZETA);
+
 	for (int i = 0; i < n - 1; i++) {
 		//cout << "count = " << i << "\n";
 		S = i * Ds;
+#ifdef ISNAN_PRINT
 		if (i != 0) {
 			for (int J = 0; J < 3; J++) {
 				if (isnan(ETA[i](J)) || isnan(XI[i](J)) || isnan(ZETA[i](J))) {
@@ -54,6 +56,8 @@ void Coordinates::DetermineAxies(Vector3d& initXI, Vector3d& initETA, Vector3d& 
 				}
 			}
 		}
+	
+#endif
 		k1_xi = omegaZeta(S)*ETA[i] - omegaEta(S)*ZETA[i];
 		k1_eta = -omegaZeta(S)*XI[i] + omegaXi(S)*ZETA[i];
 		k1_zeta = omegaEta(S)*XI[i] - omegaXi(S)*ETA[i];

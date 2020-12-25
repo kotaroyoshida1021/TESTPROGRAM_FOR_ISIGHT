@@ -37,6 +37,7 @@ static Vector2d Xi0Vec;
 static CGnuplot gp;
 
 static vector<dbl> EigVal;
+static dbl OMG_0;
 /* > Ritz法であらわされる設計変数群 */
 static VectorXd CondsVal, IneqsVal;//等式制約/不等式制約の値を格納するベクトル
 static VectorXd Lambda = VectorXd::Zero(NCOND);//乗数法におけるラグランジュ乗数
