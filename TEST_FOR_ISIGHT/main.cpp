@@ -137,6 +137,9 @@ static void determineDimension() {
 	while (fscanf_s(fp, "%le\n", &tmp) != EOF) {
 		EigVal.push_back(tmp);
 	}
+	SelfAdjointEigenSolver<MatrixXd> ES;
+	ES.compute(GramD);
+	cout << ES.eigenvalues() << "\n";
 	MatrixXd EigE = OmgEtaParams(2) * MatrixXd::Identity(Kdim,Kdim) - GramE;
 	KerE = EigE.fullPivLu().kernel();
 	NCOORD_ETA = EigE.fullPivLu().dimensionOfKernel();
