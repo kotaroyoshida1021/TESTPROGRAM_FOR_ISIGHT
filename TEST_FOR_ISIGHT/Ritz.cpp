@@ -45,6 +45,36 @@ dbl RitzMethod::Function(dbl s) {
 	}
 }
 
+dbl RitzMethod::operator()(dbl s) {
+	dbl p = s * (BMAX - 1) / length;
+	int n = (int)(p);
+	dbl q = p - n;
+	if (q == 0.0) {
+		return a.dot(BaseFunctions[n]);
+	}
+	else {
+		return (1.0 - q) * a.dot(BaseFunctions[n]) + q * a.dot(BaseFunctions[n + 1]);
+	}
+}
+//return df/da_i = e_i
+dbl RitzMethod::Partial(int i, dbl s) {
+	if (i < a.size()) {
+		cout << "Error in func " << __func__ << "\n";
+		exit(1);
+	}
+	else {
+		dbl p = s * (BMAX - 1) / length;
+		int n = (int)(p);
+		dbl q = p - n;
+		if (q == 0.0) {
+			return BaseFunctions[n](i);
+		}
+		else {
+			return (1.0 - q) * BaseFunctions[n](i) + q * BaseFunctions[n + 1](i);
+		}
+	}
+}
+
 void RitzMethod::terminates() {
 	vector<VectorXd, Eigen::aligned_allocator<Eigen::VectorXd>>().swap(BaseFunctions);
 }

@@ -17,6 +17,8 @@ public:
 	RitzMethod(int nvar,dbl Length);//nvar‚ÍŒW”‚Ì”,Length‚à“n‚·
 	VectorXd a;
 	dbl Function(dbl);
+	dbl operator()(dbl s);
+	dbl Partial(int i, dbl s);
 	void terminates();
 	dbl Derivative(dbl s);
 };

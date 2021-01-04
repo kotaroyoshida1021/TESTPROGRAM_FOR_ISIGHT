@@ -11,16 +11,18 @@ static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:i
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
 static int RankA, RankE, RankD, NCOORD_ALPHA, NCOORD_ETA, NCOORD_DIST,NCOORD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
-const string file_name = "test20201113vbase8V3";
+const string file_name = "test20201113vbase8V4";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
 static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
 static GaussIntegral<dbl> ScalarIntegralFunc;//スカラー関数積分器関数
 static VectorFunction PosFuncL_str, PosFuncU_str;//曲線の位置ベクトルの線形補完関数
-static ScalarFunction beta, alpha, omegaEta, dist;
+static ScalarFunction beta, alpha, omegaEta, dist, dev_conds;
 static const int vbase = 8;//基定関数の個数
-static RitzMethod Bt(vbase, length_LL);
-static RitzMethod forOMGET(vbase, length_LL), forDIST(vbase, length_LL);
+#define NCOORD_PER_PHI vbase
+#define NCOORD_PER_THETA vbase
+#define NCOORD_PER_UFUNC vbase
+static RitzMethod phi(vbase, length_LL), theta(vbase, length_LL), uSdot(vbase, length_LL);
 
 constexpr int dim = vbase;
 static int NCOORD_PER_SURFACE = 3 * vbase + 5;
@@ -31,8 +33,7 @@ static int NCOORD_PER_SURFACE = 3 * vbase + 5;
 static VectorXd coef;
 static VectorXd PARAM_A, PARAM_E, PARAM_D;
 static VectorXd BETA_H, OMG_ETA_H, DIST_H;//ヒルベルト空間用
-static vector<dbl> BETA(NDIV), OMG_ETA(NDIV), DIST(NDIV), ALPHA(NDIV - 2);//線形補間用
-static Vector2d Xi0Vec;
+static vector<dbl> BETA(NDIV), OMG_ETA(NDIV), DIST(NDIV), ALPHA(NDIV), DEV_CONDS(NDIV);//線形補間用
 static CGnuplot gp;
 
 static vector<dbl> EigVal;
