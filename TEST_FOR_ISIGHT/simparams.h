@@ -6,7 +6,7 @@
 #define	alloc(type,size) (type *)malloc((size)*sizeof(type))
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251//THE QUANTITY OF DIVISION USING DISCRETIZATION
-static constexpr int NCOND = 6, NINEQ = NDIV;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
+static constexpr int NCOND = 6, NINEQ = NDIV+1;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
 static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:initializing
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
@@ -18,11 +18,13 @@ static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
 static GaussIntegral<dbl> ScalarIntegralFunc;//スカラー関数積分器関数
 static VectorFunction PosFuncL_str, PosFuncU_str;//曲線の位置ベクトルの線形補完関数
 static ScalarFunction beta, alpha, omegaEta, dist, dev_conds;
-static const int vbase = 8;//基定関数の個数
+static const int vbase = 6;//基定関数の個数
 #define NCOORD_PER_PHI vbase
 #define NCOORD_PER_THETA vbase
 #define NCOORD_PER_UFUNC vbase
-static RitzMethod phi(vbase, length_LL), theta(vbase, length_LL), uSdot(vbase, length_LL);
+//static RitzMethod phi(vbase, length_LL), theta(vbase, length_LL), uSdot(vbase, length_LL);
+static RitzMethod omgXi_U(vbase, length_LL), omgEta_U(vbase, length_LL), uSdot(vbase, length_LL);
+static Vector3d xi0, eta0, zeta0;
 
 constexpr int dim = vbase;
 static int NCOORD_PER_SURFACE = 3 * vbase + 5;
@@ -34,7 +36,7 @@ static VectorXd coef;
 static VectorXd PARAM_A, PARAM_E, PARAM_D;
 static VectorXd BETA_H, OMG_ETA_H, DIST_H;//ヒルベルト空間用
 static vector<dbl> BETA(NDIV), OMG_ETA(NDIV), DIST(NDIV), ALPHA(NDIV), DEV_CONDS(NDIV);//線形補間用
-static CGnuplot gp;
+static CGnuplot gp, gp_shape;
 
 static vector<dbl> EigVal;
 /* > Ritz法であらわされる設計変数群 */

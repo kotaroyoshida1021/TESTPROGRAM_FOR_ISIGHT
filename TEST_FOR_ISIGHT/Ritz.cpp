@@ -14,7 +14,7 @@ RitzMethod::RitzMethod(int nvar,dbl Length) {
 	cout << "RitzInitialize...";
 	a = VectorXd::Zero(nvar);
 	length = Length;
-	dbl q = M_PI / length;
+	dbl q = 2 * M_PI / length;
 	dbl ds = length / (dbl)(BMAX - 1);
 	
 	for (int i = 0; i < BMAX; i++) BaseFunctions.push_back(VectorXd::Zero(nvar));
@@ -78,7 +78,7 @@ dbl RitzMethod::Partial(int i, dbl s) {
 void RitzMethod::terminates() {
 	vector<VectorXd, Eigen::aligned_allocator<Eigen::VectorXd>>().swap(BaseFunctions);
 }
-
+//return df/ds = sum_i^n a_i de_i/ds
 dbl RitzMethod::Derivative(dbl s) {
 	dbl p = s * (BMAX - 1) / length;
 	int n = (int)(p);
