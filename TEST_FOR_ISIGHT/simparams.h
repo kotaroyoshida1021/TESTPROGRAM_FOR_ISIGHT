@@ -6,26 +6,27 @@
 #define	alloc(type,size) (type *)malloc((size)*sizeof(type))
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251//THE QUANTITY OF DIVISION USING DISCRETIZATION
-static constexpr int NCOND = 6, NINEQ = NDIV+1;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
+static constexpr int NCOND = 6 + 1+2, NINEQ = NDIV + 1;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
 static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:initializing
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
 static int RankA, RankE, RankD, NCOORD_ALPHA, NCOORD_ETA, NCOORD_DIST,NCOORD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
-const string file_name = "test20201113vbase8V4";
+static const int vbase = 8;//基定関数の個数
+const string file_name = "test20210112vbase" + to_string(vbase) + "Ver6WithConds";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
 static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
 static GaussIntegral<dbl> ScalarIntegralFunc;//スカラー関数積分器関数
 static VectorFunction PosFuncL_str, PosFuncU_str;//曲線の位置ベクトルの線形補完関数
 static ScalarFunction beta, alpha, omegaEta, dist, dev_conds;
-static const int vbase = 6;//基定関数の個数
+
 #define NCOORD_PER_PHI vbase
 #define NCOORD_PER_THETA vbase
 #define NCOORD_PER_UFUNC vbase
 //static RitzMethod phi(vbase, length_LL), theta(vbase, length_LL), uSdot(vbase, length_LL);
 static RitzMethod omgXi_U(vbase, length_LL), omgEta_U(vbase, length_LL), uSdot(vbase, length_LL);
 static Vector3d xi0, eta0, zeta0;
-
+static dbl Vol, Si;
 constexpr int dim = vbase;
 static int NCOORD_PER_SURFACE = 3 * vbase + 5;
 #define n_dim NCOORD_PER_SURFACE//係数ベクトルの総和の次元
