@@ -6,12 +6,12 @@
 #define	alloc(type,size) (type *)malloc((size)*sizeof(type))
 //static const int NDIV = 501;//分割数，配列計算に使用
 #define NDIV 251//THE QUANTITY OF DIVISION USING DISCRETIZATION
-static constexpr int NCOND = 6 + 1+2, NINEQ = NDIV + 1;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
+static constexpr int NCOND = 6 + 1+1, NINEQ = NDIV + 1;//THE QUANTITY OF CONDITIONS AND INEQUALITIES
 static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:initializing
 
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
 static int RankA, RankE, RankD, NCOORD_ALPHA, NCOORD_ETA, NCOORD_DIST,NCOORD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
-static const int vbase = 8;//基定関数の個数
+static const int vbase = 12;//基定関数の個数
 const string file_name = "test20210112vbase" + to_string(vbase) + "Ver6WithConds";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
