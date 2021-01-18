@@ -29,7 +29,7 @@ using namespace Eigen;
 using namespace placeholders;
 using namespace nlopt;
 
-static const int Kdim = NDIV - 2;
+static const int Kdim = NDIV - 1;
 #define atanSigmoid(s) ((atan(s)*M_2_PI))
 
 static inline dbl Square(dbl f) {
@@ -143,10 +143,7 @@ static dbl omgZeta_U(dbl s) { return 0.0; }
 static dbl omgXi_U_Wrapper(dbl s) { return ufuncSdot(s)*omgXi_U(s); }
 static dbl omgEta_U_Wrapper(dbl s) { return ufuncSdot(s)*omgEta_U(s);}
 static Coordinates obj_UW(NDIV, length_LL, omgXi_U_Wrapper, omgEta_U_Wrapper, omgZeta_U);
-
-
 static dbl ufunc(dbl s) { return ScalarIntegralFunc.GaussIntegralFunc(0.0, s, ufuncSdot); }
-
 static Vector3d zeta_U_integrand(dbl s) { return ufuncSdot(s) * obj_UW.zeta(s);}
 
 static Vector3d pos_U(dbl s) {
@@ -197,7 +194,7 @@ static void divideCoef(VectorXd a) {
 	cout << a.size();
 #endif
 	for (int i = 0; i < NCOORD-5; i++) {
-		if (i < NCOORD_PER_PHI) {
+		/*if (i < NCOORD_PER_PHI) {
 			omgXi_U.a(i) = a(i);
 		}
 		else if (i >= NCOORD_PER_PHI && i < NCOORD_PER_PHI + NCOORD_PER_THETA) {
@@ -205,6 +202,15 @@ static void divideCoef(VectorXd a) {
 		}
 		else {
 			uSdot.a(i - (NCOORD_PER_PHI + NCOORD_PER_THETA)) = a(i);
+		}*/
+		if (i < NCOORD_PER_UFUNC) {
+			uSdot.a(i) = a(i);
+		}
+		else if (i >= NCOORD_PER_UFUNC && i < NCOORD_PER_UFUNC + NCOORD_PER_PHI) {
+			omgXi_U.a(i - NCOORD_PER_UFUNC) = a(i);
+		}
+		else {
+			omgEta_U.a(i - (NCOORD_PER_UFUNC + NCOORD_PER_PHI)) = a(i);
 		}
 	}
 	//cout << "\n";
@@ -244,7 +250,9 @@ void initializeForCalcObj(VectorXd a) {
 	divideCoef(a);
 	MemorizeFunctions();
 }
-
+dbl barrierIntegrand(dbl s) {
+	return 1 / Square(kappa(s) - fabs(omegaEta(s)));
+}
 static dbl objective(int n, VectorXd a) {
 #ifdef MY_DEBUG_MODE
 	cout << "calculate objective...";
@@ -254,7 +262,7 @@ static dbl objective(int n, VectorXd a) {
 	cout << "done\n";
 #endif
 	initializeForCalcObj(a);
-	dbl ret = ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&ScalarFunction::integrand, dev_conds, _1));//+ 5.0e-4 / Square(Volume());
+	dbl ret = ScalarIntegralFunc.GaussIntegralFunc(0.0, length_LL, bind(&ScalarFunction::integrand, dev_conds, _1))+ 1.0e-2*ScalarIntegralFunc.GaussIntegralFunc(0.0,length_LL,barrierIntegrand);//+ 5.0e-4 / Square(Volume());
 	obj_UW.terminate();
 	return ret;
 }
@@ -272,9 +280,9 @@ static inline void initializeForCalcConds(VectorXd a) {
 
 static MatrixXd calcGramMatrix(VectorXd Params) {
 	MatrixXd Mat = MatrixXd::Zero(Kdim, Kdim);
-	for (int i = 1; i < NDIV-1; i++) {
-		for (int j = 1; j < NDIV-1; j++) {
-			Mat(i - 1, j - 1) = RadiusBasisFunc(i * Ds, j * Ds, Params);
+	for (int i = 0; i < NDIV-1; i++) {
+		for (int j = 0; j < NDIV-1; j++) {
+			Mat(i, j) = RadiusBasisFunc(i * Ds, j * Ds, Params);
 		}
 	}
 	Mat += MatrixXd::Identity(Kdim, Kdim) * Params[2];
@@ -289,10 +297,11 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl>& COND) {
 	initializeForCalcConds(a);
 	vector<dbl> d;
 	VectorXd A, E;
-	A = Eigen::Map<Eigen::VectorXd>(&ALPHA[0] + 1, ALPHA.size() - 2);
-	E = Eigen::Map<Eigen::VectorXd>(&OMG_ETA[0] + 1, OMG_ETA.size() - 2);
-	VectorXd D = Eigen::Map<Eigen::VectorXd>(&DIST[0] + 1, DIST.size() - 2);
+	A = Eigen::Map<Eigen::VectorXd>(&ALPHA[0], Kdim);
+	E = Eigen::Map<Eigen::VectorXd>(&OMG_ETA[0], Kdim);
+	VectorXd D = Eigen::Map<Eigen::VectorXd>(&DIST[0], Kdim);
 	VectorXd a_A, a_E, a_D;
+	A(0) = 0.; E(0) = 0.; D(0) = 0.0;
 	a_A = GramA.fullPivLu().solve(A);
 	a_E = GramE.fullPivLu().solve(E);
 	a_D = GramD.fullPivLu().solve(D);
@@ -304,15 +313,17 @@ static void CalcConds(int n, VectorXd& a, int ncond, vector<dbl>& COND) {
 	d.push_back(1.0 * ((a_D.dot(D)) / (a_D.norm() * a_D.norm() * DistParams(2)) - 1));
 	d.push_back(DIST[NDIV - 1]);
 	for (int i = 0; i < 3; i++) d.push_back(1.0e+1 *(obj_UW.pos(length_LL)(i) - obj_LL.pos(length_LL)(i)));
-	d.push_back(OMG_ETA[0] + 2.32193);
+	//d.push_back(OMG_ETA[0] + 2.32193);
+	///d.push_back(ufunc(length_LL) - 0.887134);
 	//d.push_back(ALPHA[NDIV - 1] + 1.03664);
 	//d.push_back(OMG_ETA[NDIV - 1] - 0.0541673);
 	Vol = Volume();
 	Si = Size();
 	for (int i = 0; i < NCOND; i++) {
 		if (isnan(d[i])) {
-			cout << "isNaN detected:-> I = " << i << "\n";
-			exit(1);
+			//cout << "isNaN detected:-> I = " << i << "\n";
+			//exit(1);
+			d[i] = 1.0e5;
 		}
 	}
 	COND = d;
@@ -656,19 +667,22 @@ int main(int argc, char** argv)
 	vector<dbl> x0(NCOORD, 0.0001);
 	x0[NCOORD - 5] = 1.0;
 	x0[NCOORD - 1] = 1.0;
-	//for (int i = 0; i < NCOORD - 5; i++) {
-	//	if (i < NCOORD_PER_PHI) {
-	//		x0[i] = 0.00001 * (i);
-	//	}
-	//	else if (i >= NCOORD_PER_PHI && i < NCOORD_PER_PHI + NCOORD_PER_THETA) {
-	//		x0[i] = 0.0001;
-	//	}
-	//	else {
-	//		x0[i] = 0.001 * (i - (NCOORD_PER_PHI + NCOORD_PER_THETA) + 1);
-	//	}
-	//}
-	//x0[NCOORD - 5] = 1.0; x0[NCOORD - 4] = 0.000001; x0[NCOORD - 3] = 0.0001;
-	//x0[NCOORD - 2] = 0.000001; x0[NCOORD - 1] = 1.0;
+	for (int i = 0; i < NCOORD - 5; i++) {
+		if (i < NCOORD_PER_PHI) {
+			x0[i] = 0.001 * (i - (NCOORD_PER_PHI + NCOORD_PER_THETA) + 1);
+			//x0[i] = 0.00001 * (i);
+		}
+		else if (i >= NCOORD_PER_PHI && i < NCOORD_PER_PHI + NCOORD_PER_THETA) {
+			x0[i] = 0.00001 * (i);
+			//x0[i] = 0.0001;
+		}
+		else {
+			//x0[i] = 0.001 * (i - (NCOORD_PER_PHI + NCOORD_PER_THETA) + 1);
+			x0[i] = 0.0001;
+		}
+	}
+	x0[NCOORD - 5] = 1.0; x0[NCOORD - 4] = 0.000001; x0[NCOORD - 3] = 0.0001;
+	x0[NCOORD - 2] = 0.000001; x0[NCOORD - 1] = 1.0;
 	OPTIMIZER.set_ftol_rel(1.0e-4);
 	OPTIMIZER.set_maxeval(200000000);
 	//OPTIMIZER.set_stopval(1.0e-5);
