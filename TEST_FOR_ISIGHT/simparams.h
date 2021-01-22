@@ -12,7 +12,7 @@ static VectorXd AlphaParams, OmgEtaParams, DistParams; //DETERMINE IN FUNCTION:i
 static MatrixXd GramA, GramE, GramD, KerA, KerD, KerE;//DETERMINE IN FUNCTION:determineDimension()
 static int RankA, RankE, RankD, NCOORD_ALPHA, NCOORD_ETA, NCOORD_DIST,NCOORD;//RANK OF GRAM_MATRIX AND THE DIMENSION OF COEF IN EACH FUNCTION->DETERMINE IN FUNCTION:determineDimension()
 static const int vbase = 8;//基定関数の個数
-const string file_name = "test20210112vbase" + to_string(vbase) + "Ver6WithConds";
+const string file_name = "test20210112vbase" + to_string(vbase) + "Ver7WithConds";
 static dbl length_LL = 1.076991;//ワイヤー長さ
 static dbl Ds = length_LL / (dbl)(NDIV - 1);//刻み幅
 static GaussIntegral<Vector3d> VecIntergalFunc;//ベクトル関数積分器関数
